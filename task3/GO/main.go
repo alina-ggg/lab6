@@ -56,7 +56,7 @@ func solveGauss(A [][]float64, B []float64) {
 	}
 }
 
-// 2. Метод Зейделя (с идеальной таблицей)
+// 2. Метод Зейделя
 func solveSeidel(A [][]float64, B []float64, eps float64) {
 	n := len(A)
 	x := make([]float64, n)
@@ -112,7 +112,6 @@ func main() {
 
 	solveGauss(A, B)
 
-	// Для Зейделя значения те же, но их нужно подавать в систему
 	Acan := [][]float64{
 		{0.91, -0.04, 0.21, -1.16},
 		{0.25, -1.23, -0.23, -0.09},
