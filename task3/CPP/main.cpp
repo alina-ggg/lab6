@@ -17,7 +17,7 @@ void printMatrix(const vector<vector<double>>& A, const vector<double>& B) {
 // 1. Прямой метод (Гаусс)
 void solveGauss(vector<vector<double>> A, vector<double> B) {
     int n = A.size();
-    cout << "--- ПРЯМОЙ ХОД ---" << endl;
+    cout << "ПРЯМОЙ ХОД" << endl;
     for (int k = 0; k < n; k++) {
         int maxRow = k;
         for (int i = k + 1; i < n; i++)
@@ -34,7 +34,7 @@ void solveGauss(vector<vector<double>> A, vector<double> B) {
         printMatrix(A, B);
     }
 
-    cout << "\n--- ОБРАТНЫЙ ХОД (Корни) ---" << endl;
+    cout << "\nОБРАТНЫЙ ХОД (Корни)" << endl;
     vector<double> x(n);
     for (int i = n - 1; i >= 0; i--) {
         double sum = 0;
@@ -50,7 +50,7 @@ void solveSeidel(vector<vector<double>> A, vector<double> B, double eps) {
     vector<double> x(n, 0.0);
     vector<double> x_old(n);
     
-    cout << "\n--- ТАБЛИЦА ИТЕРАЦИЙ (Метод Зейделя) ---" << endl;
+    cout << "\nТАБЛИЦА ИТЕРАЦИЙ (Метод Зейделя)" << endl;
     cout << setw(5) << "N" << setw(10) << "X1" << setw(10) << "X2" << setw(10) << "X3" 
          << setw(10) << "X4" << setw(15) << "eps_n" << endl;
 
@@ -74,7 +74,7 @@ void solveSeidel(vector<vector<double>> A, vector<double> B, double eps) {
 }
 
 int main() {
-    // Вариант 8 (исходная матрица)
+    // исходная матрица
     vector<vector<double>> A = {
         {0.91, -0.04, 0.21, -1.16},
         {0.25, -1.23, -0.23, -0.09},
