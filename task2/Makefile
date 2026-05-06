@@ -3,4 +3,3 @@ all:
 
 clean:
 	rm *.o key
-	rm *.bin key

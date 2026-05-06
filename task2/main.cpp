@@ -4,10 +4,11 @@
 #include <iomanip>
 #include <random>
 #include <cstring>
+#include <string>
 
 using namespace std;
 
-// S-Box (таблица подстановок)
+// S-Box (Таблица замен): используется для нелинейной подстановки байтов (этап SubBytes)
 const unsigned char sbox[256] = {
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
     0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -27,46 +28,58 @@ const unsigned char sbox[256] = {
     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 };
 
+// используются при расширении ключа для добавления константы к первому байту слова
 const unsigned char rcon[11] = { 0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36 };
 
-// --- Генерация ключа и сохранение в файл ---
-void generateKey(unsigned char key[16]) {
+// выполняет умножение на 2 в поле Галуа GF(2^8)
+unsigned char xtime(unsigned char x) { return (x << 1) ^ ((x & 0x80) ? 0x1b : 0x00); }
+
+// Функция для вывода массива байтов в шестнадцатеричном виде
+void printHex(const string& label, const unsigned char* data, int len) {
+    cout << label << ": ";
+    for (int i = 0; i < len; ++i) cout << hex << setw(2) << setfill('0') << (int)data[i] << " ";
+    cout << dec << endl;
+}
+
+// Генерация случайных байтов для ключа и IV
+void generateRandomBytes(unsigned char* buf, int len) {
     random_device rd;
     mt19937 gen(rd());
     uniform_int_distribution<> dis(0, 255);
-    for (int i = 0; i < 16; ++i) key[i] = dis(gen);
-    
-    ofstream fout("key.bin", ios::binary);
-    fout.write(reinterpret_cast<char*>(key), 16);
-    fout.close();
-    cout << "[INFO] Случайный ключ сгенерирован и записан в key.bin" << endl;
+    for (int i = 0; i < len; ++i) buf[i] = dis(gen);
 }
 
-// Функция для арифметики в поле Галуа
-unsigned char xtime(unsigned char x) {
-    return (x << 1) ^ ((x & 0x80) ? 0x1b : 0x00);
+// Дополнение сообщения по стандарту PKCS7 (чтобы длина была кратна 16 байтам)
+void padPKCS7(vector<unsigned char>& data) {
+    int padding = 16 - (data.size() % 16);
+    for (int i = 0; i < padding; ++i) data.push_back((unsigned char)padding);
 }
 
-void printHex(const unsigned char* data, int len) {
-    for (int i = 0; i < len; ++i) cout << hex << setw(2) << setfill('0') << (int)data[i] << " ";
-    cout << endl;
+// Удаление дополнения PKCS7 после расшифрования
+void unpadPKCS7(vector<unsigned char>& data) {
+    if (data.empty()) return;
+    int padding = data.back();
+    if (padding > 0 && padding <= 16) data.resize(data.size() - padding);
 }
 
+// создание расписания ключей (11 ключей по 16 байт) из одного мастер-ключа
 void keyExpansion(const unsigned char key[16], unsigned char w[11][16]) {
-    memcpy(w[0], key, 16);
+    memcpy(w[0], key, 16); // Первый раундовый ключ — это сам мастер-ключ
     for (int i = 1; i <= 10; ++i) {
+        // Вычисление первого слова нового ключа с использованием S-Box и Rcon
         w[i][0] = w[i-1][0] ^ sbox[w[i-1][13]] ^ rcon[i];
         w[i][1] = w[i-1][1] ^ sbox[w[i-1][14]];
         w[i][2] = w[i-1][2] ^ sbox[w[i-1][15]];
         w[i][3] = w[i-1][3] ^ sbox[w[i-1][12]];
+        // Генерация остальных байт ключа путем XOR с предыдущими словами
         for (int j = 4; j < 16; ++j) w[i][j] = w[i-1][j] ^ w[i][j-4];
     }
 }
 
-void subBytes(unsigned char state[16]) {
-    for (int i = 0; i < 16; ++i) state[i] = sbox[state[i]];
-}
+// замена каждого байта в матрице состояния (State) согласно таблице S-Box
+void subBytes(unsigned char state[16]) { for(int i=0; i<16; ++i) state[i] = sbox[state[i]]; }
 
+// циклический сдвиг строк матрицы состояния влево
 void shiftRows(unsigned char state[16]) {
     unsigned char tmp[16];
     tmp[0]=state[0]; tmp[4]=state[1]; tmp[8]=state[2]; tmp[12]=state[3];
@@ -76,73 +89,110 @@ void shiftRows(unsigned char state[16]) {
     memcpy(state, tmp, 16);
 }
 
+// перемешивание столбцов матрицы состояния (линейное преобразование)
 void mixColumns(unsigned char state[16]) {
     for (int i = 0; i < 4; ++i) {
-        unsigned char* col = &state[i * 4];
-        unsigned char a = col[0], b = col[1], c = col[2], d = col[3];
-        col[0] = xtime(a) ^ (xtime(b) ^ b) ^ c ^ d;
-        col[1] = a ^ xtime(b) ^ (xtime(c) ^ c) ^ d;
-        col[2] = a ^ b ^ xtime(c) ^ (xtime(d) ^ d);
-        col[3] = (xtime(a) ^ a) ^ b ^ c ^ xtime(d);
+        unsigned char* c = &state[i * 4];
+        unsigned char a = c[0], b = c[1], d = c[2], e = c[3];
+        c[0] = xtime(a) ^ (xtime(b) ^ b) ^ d ^ e;
+        c[1] = a ^ xtime(b) ^ (xtime(d) ^ d) ^ e;
+        c[2] = a ^ b ^ xtime(d) ^ (xtime(e) ^ e);
+        c[3] = (xtime(a) ^ a) ^ b ^ d ^ xtime(e);
     }
 }
 
+// побайтовый XOR матрицы состояния с раундовым ключом
 void addRoundKey(unsigned char state[16], const unsigned char key[16]) {
     for (int i = 0; i < 16; ++i) state[i] ^= key[i];
 }
 
-// --- Вывод состояния ---
-void printState(const unsigned char state[16], const string& stage) {
-    cout << stage << ": ";
-    for (int i = 0; i < 16; ++i) cout << hex << setw(2) << setfill('0') << (int)state[i] << " ";
-    cout << endl;
+// выполнение полной последовательности раундов шифрования для одного блока (16 байт)
+void aesEncryptBlock(unsigned char block[16], unsigned char w[11][16], bool showTrace) {
+    addRoundKey(block, w[0]); // Начальный раунд
+    for (int r = 1; r < 10; ++r) { // Основные 9 раундов
+        subBytes(block);
+        shiftRows(block);
+        mixColumns(block);
+        addRoundKey(block, w[r]);
+        // Вывод промежуточного состояния (State)
+        if (showTrace && r == 1) printHex("  Промежуточное состояние (Раунд 1)", block, 16);
+    }
+    // Финальный раунд (без MixColumns)
+    subBytes(block);
+    shiftRows(block);
+    addRoundKey(block, w[10]);
 }
 
-// --- Шифрование блока с выводом промежуточных результатов ---
-void aesEncryptBlock(unsigned char block[16], unsigned char w[11][16]) {
-    cout << "\n[НАЧАЛО ШИФРОВАНИЯ БЛОКА]" << endl;
-    
-    addRoundKey(block, w[0]);
-    cout << "После начального AddRoundKey: "; printHex(block, 16);
+// реализация режима работы "Обратная связь по шифротексту"
+void aesCFB(vector<unsigned char>& data, unsigned char w[11][16], const unsigned char iv[16], bool encrypt) {
+    unsigned char feedback[16];
+    memcpy(feedback, iv, 16); // Начальная обратная связь —  IV
 
-    for (int r = 1; r < 10; ++r) {
-        cout << "\n--- Раунд " << r << " ---" << endl;
-        subBytes(block); cout << "После SubBytes:    "; printHex(block, 16);
-        shiftRows(block); cout << "После ShiftRows:   "; printHex(block, 16);
-        mixColumns(block); cout << "После MixColumns:  "; printHex(block, 16);
-        addRoundKey(block, w[r]); cout << "После AddRoundKey: "; printHex(block, 16);
+    for (size_t i = 0; i < data.size(); i += 16) {
+        unsigned char stream[16];
+        memcpy(stream, feedback, 16);
+        
+        // В режиме CFB мы всегда шифруем блок обратной связи
+        aesEncryptBlock(stream, w, (i == 0)); 
+
+        for (int j = 0; j < 16; ++j) {
+            unsigned char originalByte = data[i + j];
+            data[i + j] ^= stream[j]; // Наложение гаммы на текст
+            // Обновление обратной связи: в CFB это текущий блок шифротекста
+            feedback[j] = encrypt ? data[i + j] : originalByte;
+        }
     }
-
-    cout << "\n--- Финальный раунд (10) ---" << endl;
-    subBytes(block); cout << "После SubBytes:    "; printHex(block, 16);
-    shiftRows(block); cout << "После ShiftRows:   "; printHex(block, 16);
-    addRoundKey(block, w[10]); cout << "Результат (Final): "; printHex(block, 16);
 }
 
 int main() {
-    // 1. Инициализация переменных
-    string input = "Привет/Hello"; // Поддержка двух языков
-    unsigned char iv[16] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
-    unsigned char key[16];
+
+    cout << "AES-128 CFB Шифрование" << endl;
+    cout << "Введите текст для шифрования: ";
+    string input;
+    getline(cin, input);
+
+    // 1. Подготовка данных (преобразование в байты и Padding)
+    vector<unsigned char> data(input.begin(), input.end());
+    padPKCS7(data);
+
+    // 2. Генерация случайного мастер-ключа и вектора инициализации (IV)
+    unsigned char masterKey[16], iv[16];
+    generateRandomBytes(masterKey, 16);
+    generateRandomBytes(iv, 16);
+
+    // 3. Запись ключа в файл (согласно заданию)
+    ofstream keyFile("key.bin", ios::binary);
+    keyFile.write((char*)masterKey, 16);
+    keyFile.close();
+
+    // 4. Расширение ключа (Key Expansion)
     unsigned char w[11][16];
+    keyExpansion(masterKey, w);
 
-    // 2. Генерация
-    generateKey(key);
+    // 5. Вывод служебной информации
+    cout << "\n[INFO] Ключ сохранен в key.bin" << endl;
+    printHex("  Мастер-ключ", masterKey, 16);
+    printHex("  Вектор инициализации (IV)", iv, 16);
+    
+    cout << "\nРаундовые ключи (первые 2):" << endl;
+    printHex("  Раунд 0", w[0], 16);
+    printHex("  Раунд 1", w[1], 16);
 
-    // 2. Выводим IV
-    cout << "Вектор инициализации (IV): "; printHex(iv, 16);
+    // 6. Шифрование текста
+    cout << "\nПроцесс шифрования" << endl;
+    vector<unsigned char> encrypted = data;
+    aesCFB(encrypted, w, iv, true);
+    printHex("Результат (Шифротекст)", encrypted.data(), encrypted.size());
 
-    // 3. Расширяем ключ и выводим все раундовые ключи
-    keyExpansion(key, w);
-    cout << "\n[РАУНДОВЫЕ КЛЮЧИ]" << endl;
-    for(int i = 0; i <= 10; ++i) {
-        cout << "Ключ " << i << ": "; printHex(w[i], 16);
-    }
+    // 7. Расшифрование текста
+    cout << "\nПроцесс расшифрования" << endl;
+    vector<unsigned char> decrypted = encrypted;
+    aesCFB(decrypted, w, iv, false);
+    unpadPKCS7(decrypted);
 
-    // 4. Шифруем блок
-    unsigned char block[16];
-    memcpy(block, iv, 16);
-    aesEncryptBlock(block, w);
+    // 8. Вывод итогового результата
+    string result(decrypted.begin(), decrypted.end());
+    cout << "  Расшифрованный текст: " << result << endl;
 
     return 0;
 }
