@@ -123,7 +123,7 @@ void aesEncryptBlock(unsigned char block[16], unsigned char w[11][16], bool show
     addRoundKey(block, w[10]);
 }
 
-// реализация режима работы "Обратная связь по шифротексту"
+// реализация режима работы "Обратная связь по шифротексту" (результат шифрования предыдущего блока)
 void aesCFB(vector<unsigned char>& data, unsigned char w[11][16], const unsigned char iv[16], bool encrypt) {
     unsigned char feedback[16];
     memcpy(feedback, iv, 16); // Начальная обратная связь —  IV
