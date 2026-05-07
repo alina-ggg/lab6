@@ -52,6 +52,8 @@ void task1() {
             }
         }
     }
+    cout << "Матрица: " << endl;
+    printMatrix(matrix);
     cout << "Строка: " << bestRow << ", Длина: " << maxLen << "\nМассив: ";
     for (int val : bestSeq) cout << val << " ";
     cout << endl;
@@ -103,11 +105,15 @@ void task3() {
     int m = getValidSize(5, 10, "m");
     int n = getValidSize(5, 10, "n");
     string word;
-    cout << "Введите слово: ";
-    cin >> word;
     vector<vector<char>> matrix(m, vector<char>(n));
     for (auto &row : matrix) for (char &c : row) c = 'A' + rand() % 26;
-
+    cout << "Матрица: " << endl;
+    for (const auto& row : matrix) {
+        for (char val : row) cout << setw(5) << val << " ";
+        cout << endl;
+    }
+    cout << "Введите слово: ";
+    cin >> word;
     vector<vector<bool>> vis(m, vector<bool>(n, false));
     bool found = false;
     for (int i = 0; i < m && !found; ++i)
@@ -115,4 +121,5 @@ void task3() {
             if(dfs(matrix, word, i, j, 0, vis)) found = true;
 
     cout << (found ? "true" : "false") << endl;
+    
 }

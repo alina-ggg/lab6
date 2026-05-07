@@ -5,11 +5,11 @@
 int main() {
     srand(static_cast<unsigned>(time(0)));
 
-    cout << "--- Задание 1 ---" << endl;
+    cout << "Задание 1" << endl;
     task1();
-    cout << "\n--- Задание 2 ---" << endl;
+    cout << "\nЗадание 2" << endl;
     task2();
-    cout << "\n--- Задание 3 ---" << endl;
+    cout << "\nЗадание 3" << endl;
     task3();
     
     return 0;

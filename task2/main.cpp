@@ -132,7 +132,7 @@ void aesCFB(vector<unsigned char>& data, unsigned char w[11][16], const unsigned
         unsigned char stream[16];
         memcpy(stream, feedback, 16);
         
-        // В режиме CFB мы всегда шифруем блок обратной связи
+        // В режиме CFB всегда шифруем блок обратной связи
         aesEncryptBlock(stream, w, (i == 0)); 
 
         for (int j = 0; j < 16; ++j) {
@@ -160,7 +160,7 @@ int main() {
     generateRandomBytes(masterKey, 16);
     generateRandomBytes(iv, 16);
 
-    // 3. Запись ключа в файл (согласно заданию)
+    // 3. Запись ключа в файл
     ofstream keyFile("key.bin", ios::binary);
     keyFile.write((char*)masterKey, 16);
     keyFile.close();
